@@ -23,20 +23,33 @@ mongoose
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err.message));
 
+// =========================
+// 🧩 DEMO ACCOUNT SCHEMA
+// =========================
+const DemoAccountSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  balance: { type: Number, default: 1000 },
+  createdAt: { type: Date, default: () => new Date() },
+});
+const DemoAccount = mongoose.model("DemoAccount", DemoAccountSchema);
+
+// =========================
+// 🤖 BOT SCHEMA
+// =========================
 const BotSchema = new mongoose.Schema({
   account: { type: String, index: true },
-  coin: String,                 // BTCUSDT
-  leverage: Number,             // 1..3
-  status: { type: String },     // RUNNING / STOPPED
+  coin: String, // BTCUSDT
+  leverage: Number, // 1..3
+  status: { type: String }, // RUNNING / STOPPED
   entryPrice: { type: Number, default: 0 },
   pnl: { type: Number, default: 0 },
   updatedAt: { type: Date, default: () => new Date() },
 });
 const Bot = mongoose.model("Bot", BotSchema);
 
-// ----- ROUTES -----
-
-// Health / root
+// =========================
+// 🌍 BASE ROUTES
+// =========================
 app.get("/", (_req, res) => {
   res.send("🚀 Halo Crypto Server up & MongoDB OK");
 });
@@ -45,7 +58,57 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
-// Fiyat (Binance)
+// =========================
+// 💰 DEMO ACCOUNT ROUTES
+// =========================
+
+// Tüm demo hesapları getir
+app.get("/api/demoAccounts", async (_req, res) => {
+  try {
+    const accounts = await DemoAccount.find().sort({ createdAt: -1 });
+    res.json(accounts);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Yeni demo hesap oluştur
+app.post("/api/demoAccounts", async (req, res) => {
+  try {
+    const { name, balance } = req.body;
+    if (!name) return res.status(400).json({ error: "Name is required" });
+
+    const count = await DemoAccount.countDocuments();
+    if (count >= 3)
+      return res.status(400).json({ error: "Maximum 3 accounts allowed" });
+
+    const newAccount = new DemoAccount({
+      name,
+      balance: balance || 1000,
+    });
+
+    await newAccount.save();
+    res.status(201).json(newAccount);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Demo hesap sil
+app.delete("/api/demoAccounts/:id", async (req, res) => {
+  try {
+    await DemoAccount.findByIdAndDelete(req.params.id);
+    res.json({ message: "Account deleted" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =========================
+// 📈 BINANCE & BOT ROUTES
+// =========================
+
+// Binance fiyat
 app.get("/price", async (req, res) => {
   try {
     const symbol = String(req.query.symbol || "").toUpperCase();
@@ -64,7 +127,7 @@ app.get("/price", async (req, res) => {
   }
 });
 
-// Saatlik SMA
+// SMA verileri
 app.get("/sma", async (req, res) => {
   try {
     const symbol = String(req.query.symbol || "").toUpperCase();
@@ -95,13 +158,14 @@ app.get("/sma", async (req, res) => {
 app.post("/bot/start", async (req, res) => {
   try {
     const { account, coin, leverage = 1 } = req.body || {};
-    if (!account || !coin) return res.status(400).json({ error: "account & coin required" });
+    if (!account || !coin)
+      return res.status(400).json({ error: "account & coin required" });
 
     const bot = await Bot.findOneAndUpdate(
       { account },
       {
         account,
-        coin: coin.toUpperCase(),     // BTCUSDT
+        coin: coin.toUpperCase(),
         leverage: Number(leverage) || 1,
         status: "RUNNING",
         updatedAt: new Date(),
@@ -145,7 +209,7 @@ app.get("/bot/status", async (req, res) => {
   }
 });
 
-// Tüm bot kayıtları (debug)
+// Tüm bot kayıtları
 app.get("/bots", async (_req, res) => {
   try {
     const bots = await Bot.find().sort({ updatedAt: -1 });
