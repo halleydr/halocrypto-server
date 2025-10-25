@@ -1,8 +1,10 @@
+// ===== DEPENDENCIES =====
 const express = require("express");
 const mongoose = require("mongoose");
 const axios = require("axios");
 const cors = require("cors");
 
+// ===== APP SETUP =====
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -12,13 +14,13 @@ const MONGO_URI =
   process.env.MONGO_URI ||
   "mongodb+srv://halocrypto:Halley.117@cluster0.lhafth6.mongodb.net/?appName=Cluster0";
 
-// MongoDB bağlantısı
+// ===== MONGODB CONNECTION =====
 mongoose
   .connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err.message));
 
-// DEMO ACCOUNT SCHEMA
+// ===== DEMO ACCOUNT SCHEMA =====
 const DemoAccountSchema = new mongoose.Schema({
   name: { type: String, required: true },
   balance: { type: Number, default: 1000 },
@@ -26,19 +28,19 @@ const DemoAccountSchema = new mongoose.Schema({
 });
 const DemoAccount = mongoose.model("DemoAccount", DemoAccountSchema);
 
-// BOT SCHEMA
+// ===== BOT SCHEMA =====
 const BotSchema = new mongoose.Schema({
   account: { type: String, index: true },
   coin: String,
   leverage: Number,
-  status: String,
+  status: String, // RUNNING / STOPPED
   entryPrice: { type: Number, default: 0 },
   pnl: { type: Number, default: 0 },
   updatedAt: { type: Date, default: () => new Date() },
 });
 const Bot = mongoose.model("Bot", BotSchema);
 
-// BASE ROUTES
+// ===== BASE ROUTES =====
 app.get("/", (_req, res) => {
   res.send("🚀 Halo Crypto Server up & MongoDB OK");
 });
@@ -47,7 +49,9 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
-// DEMO ACCOUNT ROUTES
+// ===== DEMO ACCOUNT ROUTES =====
+
+// Tüm demo hesapları getir
 app.get("/api/demoAccounts", async (_req, res) => {
   try {
     const accounts = await DemoAccount.find().sort({ createdAt: -1 });
@@ -57,14 +61,15 @@ app.get("/api/demoAccounts", async (_req, res) => {
   }
 });
 
+// Yeni demo hesap oluştur
 app.post("/api/demoAccounts", async (req, res) => {
   try {
     const { name, balance } = req.body;
     if (!name) return res.status(400).json({ error: "Name is required" });
 
     const count = await DemoAccount.countDocuments();
-    if (count >= 3)
-      return res.status(400).json({ error: "Maximum 3 accounts allowed" });
+    if (count >= 10)
+      return res.status(400).json({ error: "Maximum 10 demo accounts allowed" });
 
     const newAccount = new DemoAccount({ name, balance: balance || 1000 });
     await newAccount.save();
@@ -74,6 +79,7 @@ app.post("/api/demoAccounts", async (req, res) => {
   }
 });
 
+// Demo hesabı sil
 app.delete("/api/demoAccounts/:id", async (req, res) => {
   try {
     await DemoAccount.findByIdAndDelete(req.params.id);
@@ -83,7 +89,7 @@ app.delete("/api/demoAccounts/:id", async (req, res) => {
   }
 });
 
-// Binance fiyat
+// ===== BINANCE PRICE =====
 app.get("/price", async (req, res) => {
   try {
     const symbol = String(req.query.symbol || "").toUpperCase();
@@ -102,7 +108,7 @@ app.get("/price", async (req, res) => {
   }
 });
 
-// SMA verileri
+// ===== SMA VERİLERİ =====
 app.get("/sma", async (req, res) => {
   try {
     const symbol = String(req.query.symbol || "").toUpperCase();
@@ -129,7 +135,9 @@ app.get("/sma", async (req, res) => {
   }
 });
 
-// BOT işlemleri
+// ===== BOT ROUTES =====
+
+// Bot başlat
 app.post("/bot/start", async (req, res) => {
   try {
     const { account, coin, leverage = 1 } = req.body || {};
@@ -154,6 +162,7 @@ app.post("/bot/start", async (req, res) => {
   }
 });
 
+// Bot durdur
 app.post("/bot/stop", async (req, res) => {
   try {
     const { account } = req.body || {};
@@ -170,6 +179,7 @@ app.post("/bot/stop", async (req, res) => {
   }
 });
 
+// Bot durumu
 app.get("/bot/status", async (req, res) => {
   try {
     const account = String(req.query.account || "");
@@ -182,6 +192,7 @@ app.get("/bot/status", async (req, res) => {
   }
 });
 
+// Tüm bot kayıtları
 app.get("/bots", async (_req, res) => {
   try {
     const bots = await Bot.find().sort({ updatedAt: -1 });
@@ -191,4 +202,7 @@ app.get("/bots", async (_req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`🌍 Halo Crypto Server listening on ${PORT}`));
+// ===== START SERVER =====
+app.listen(PORT, () => {
+  console.log(`🌍 Halo Crypto Server listening on port ${PORT}`);
+});
